@@ -72,10 +72,10 @@ void getChessboardCorners(vector<Mat> images, vector<vector<Point2f>>& allFoundC
 
 
 int startWebcamMonitoring(const Mat& cameraMatrix, const Mat& distCoeffs, float arucoSquareDimension) {
-	// 1. Инициализация словаря и детектора
+	// 1. Г€Г­ГЁГ¶ГЁГ Г«ГЁГ§Г Г¶ГЁГї Г±Г«Г®ГўГ Г°Гї ГЁ Г¤ГҐГІГҐГЄГІГ®Г°Г 
 	aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco::DICT_4X4_50);
 	aruco::ArucoDetector detector(dictionary);
-	// 2. Открытие видеопотока
+	// 2. ГЋГІГЄГ°Г»ГІГЁГҐ ГўГЁГ¤ГҐГ®ГЇГ®ГІГ®ГЄГ 
 	VideoCapture vid(0, CAP_DSHOW);
 	if (!vid.isOpened()) {
 		cerr << "ERROR: Could not open video capture device" << endl;
@@ -89,18 +89,18 @@ int startWebcamMonitoring(const Mat& cameraMatrix, const Mat& distCoeffs, float 
 			break;
 		}
 
-		// 3. Обнаружение маркеров
+		// 3. ГЋГЎГ­Г Г°ГіГ¦ГҐГ­ГЁГҐ Г¬Г Г°ГЄГҐГ°Г®Гў
 		vector<int> markerIds;
 		vector<vector<Point2f>> markerCorners, rejectedCandidates;
 		detector.detectMarkers(frame, markerCorners, markerIds, rejectedCandidates);
 
 		if (!markerIds.empty()) {
-			// 4. Оценка позы маркеров
+			// 4. ГЋГ¶ГҐГ­ГЄГ  ГЇГ®Г§Г» Г¬Г Г°ГЄГҐГ°Г®Гў
 			vector<Vec3d> rvecs, tvecs;
 			aruco::estimatePoseSingleMarkers(markerCorners, arucoSquareDimension,
 				cameraMatrix, distCoeffs, rvecs, tvecs);
 
-			// 5. Отрисовка маркеров и осей
+			// 5. ГЋГІГ°ГЁГ±Г®ГўГЄГ  Г¬Г Г°ГЄГҐГ°Г®Гў ГЁ Г®Г±ГҐГ©
 			aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
 
 			for (size_t i = 0; i < rvecs.size(); ++i) {
@@ -110,10 +110,10 @@ int startWebcamMonitoring(const Mat& cameraMatrix, const Mat& distCoeffs, float 
 			}
 		}
 
-		// 6. Отображение результата
+		// 6. ГЋГІГ®ГЎГ°Г Г¦ГҐГ­ГЁГҐ Г°ГҐГ§ГіГ«ГјГІГ ГІГ 
 		imshow("ArUco Detection", frame);
 
-		// 7. Выход по ESC
+		// 7. Г‚Г»ГµГ®Г¤ ГЇГ® ESC
 		if (waitKey(30) == 27) break;
 	}
 
@@ -144,7 +144,7 @@ void cameraCalibration(vector<Mat> calibrationImages, Size boardSize, float squa
 bool saveCameraCalibration(string name, Mat cameraMatrix, Mat distanceCoefficients) {
 	ofstream outStream(name);
 	if (outStream) {
-		// Сохраняет матрицу камеры
+		// Г‘Г®ГµГ°Г Г­ГїГҐГІ Г¬Г ГІГ°ГЁГ¶Гі ГЄГ Г¬ГҐГ°Г»
 
 		uint16_t rows = cameraMatrix.rows;
 		uint16_t columns = cameraMatrix.cols;
@@ -290,161 +290,17 @@ void cameraCalibrationProcess(Mat& cameraMatrix, Mat distanceCoefficients) {
 
 }
 
-void detectAndDrawCircles(Mat& frame) {
-	Mat gray, blur, edges;
-
-	// 1. Предварительная обработка
-	cvtColor(frame, gray, COLOR_BGR2GRAY);
-	medianBlur(gray, blur, 7);  // Медианный фильтр лучше убирает шумы
-	Canny(blur, edges, 50, 150); // Детекция границ
-
-	// 2. Детекция кругов с жесткими параметрами
-	vector<Vec3f> circles;
-	HoughCircles(blur, circles, HOUGH_GRADIENT,
-		1,  // dp
-		blur.rows / 8,  // minDist (1/8 высоты изображения)
-		100, // param1 (порог для Canny)
-		30,  // param2 (чем выше, тем строже)
-		20,  // minRadius
-		150  // maxRadius
-	);
-
-	// 3. Дополнительная фильтрация
-	vector<Vec3f> validCircles;
-	for (const auto& c : circles) {
-		// Проверка округлости через моменты
-		Rect roi(c[0] - c[2], c[1] - c[2], 2 * c[2], 2 * c[2]);
-		if (roi.x < 0 || roi.y < 0 || roi.x + roi.width > edges.cols || roi.y + roi.height > edges.rows)
-			continue;
-
-		Mat mask = Mat::zeros(edges.size(), CV_8U);
-		circle(mask, Point(c[0], c[1]), c[2], Scalar(255), -1);
-
-		Mat croppedEdges;
-		bitwise_and(edges, edges, croppedEdges, mask);
-
-		vector<vector<Point>> contours;
-		findContours(croppedEdges, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
-
-		if (contours.size() >= 5) {  // Круг должен иметь достаточно границ
-			validCircles.push_back(c);
-		}
-	}
-
-	// 4. Отрисовка только валидных кругов
-	for (const auto& c : validCircles) {
-		Point center(cvRound(c[0]), cvRound(c[1]));
-		int radius = cvRound(c[2]);
-		circle(frame, center, radius, Scalar(0, 255, 0), 2);
-		circle(frame, center, 3, Scalar(0, 0, 255), -1);
-	}
-}
-
-// Функция для детекции и отрисовки прямоугольников
-void detectAndDrawRectangles(Mat& frame) {
-	Mat gray, blur, edges;
-
-	// 1. Предварительная обработка
-	cvtColor(frame, gray, COLOR_BGR2GRAY);
-	GaussianBlur(gray, blur, Size(5, 5), 1);
-	Canny(blur, edges, 50, 150);
-
-	// 2. Поиск контуров
-	vector<vector<Point>> contours;
-	vector<Vec4i> hierarchy;
-	findContours(edges, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-
-	// 3. Фильтрация и аппроксимация
-	vector<vector<Point>> rectangles;
-	for (const auto& cnt : contours) {
-		// Отсеиваем слишком маленькие контуры
-		if (contourArea(cnt) < 1000)
-			continue;
-
-		vector<Point> approx;
-		// Аппроксимируем контур полигоном
-		double epsilon = 0.02 * arcLength(cnt, true);
-		approxPolyDP(cnt, approx, epsilon, true);
-
-		// Ищем контуры с 4 вершинами и выпуклые
-		if (approx.size() == 4 && isContourConvex(approx)) {
-			// Проверяем углы между сторонами
-			double maxCosine = 0;
-			for (int j = 2; j < 5; j++) {
-				Point pt1 = approx[j % 4];
-				Point pt2 = approx[j - 2];
-				Point pt0 = approx[j - 1];
-
-				double dx1 = pt1.x - pt0.x;
-				double dy1 = pt1.y - pt0.y;
-				double dx2 = pt2.x - pt0.x;
-				double dy2 = pt2.y - pt0.y;
-
-				double angle = (dx1 * dx2 + dy1 * dy2) / sqrt((dx1 * dx1 + dy1 * dy1) * (dx2 * dx2 + dy2 * dy2) + 1e-10);
-				maxCosine = max(maxCosine, abs(angle));
-			}
-
-			// Если углы близки к прямым (cos ? 0)
-			if (maxCosine < 0.3) {
-				rectangles.push_back(approx);
-			}
-		}
-	}
-
-	// 4. Отрисовка результатов
-	for (const auto& rect : rectangles) {
-		for (int i = 0; i < 4; i++) {
-			line(frame, rect[i], rect[(i + 1) % 4], Scalar(0, 255, 0), 2);
-		}
-		// Отрисовка центра
-		Moments m = moments(rect);
-		Point center(m.m10 / m.m00, m.m01 / m.m00);
-		circle(frame, center, 5, Scalar(0, 0, 255), -1);
-	}
-}
-
 
 
 int main() {
 
-	//Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
+	Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
 
-	//Mat distanceCoefficients;
+	Mat distanceCoefficients;
 
-	//cameraCalibrationProcess(cameraMatrix, distanceCoefficients);
-	//loadCamerCalibration("CameraCalibration.txt",cameraMatrix, distanceCoefficients);
-	//startWebcamMonitoring(cameraMatrix, distanceCoefficients, 0.0085f);
+	cameraCalibrationProcess(cameraMatrix, distanceCoefficients);
+	loadCamerCalibration("CameraCalibration.txt",cameraMatrix, distanceCoefficients);
+	startWebcamMonitoring(cameraMatrix, distanceCoefficients, 0.0085f);
 
-	VideoCapture cap(0, CAP_DSHOW); // Открываем камеру (0 - дефолтная камера)
-
-	if (!cap.isOpened()) {
-		cerr << "Error: Could not open camera" << endl;
-		return -1;
-	}
-
-	Mat frame;
-	namedWindow("rectangle detection", WINDOW_AUTOSIZE);
-
-	while (true) {
-		cap >> frame; // Захватываем кадр с камеры
-
-		if (frame.empty()) {
-			cerr << "Error: Blank frame grabbed" << endl;
-			break;
-		}
-
-		detectAndDrawRectangles(frame); // Обрабатываем кадр
-
-		imshow("rectangle detection", frame); // Показываем результат
-
-		// Выход по нажатию ESC
-		if (waitKey(10) == 27) {
-			break;
-		}
-	}
-
-	cap.release();
-	destroyAllWindows();
-	
 	return 0;
 }
